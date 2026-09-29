@@ -9,11 +9,11 @@ const KEYS = {
 };
 
 export const DEFAULT_STATION_PROFILE: StationProfile = {
-  supplierName: 'LANKA FUEL MART (PVT) LTD',
-  supplierTin: '102983746-7000',
-  supplierAddress: 'No. 245, Kandy Road, Kelaniya, Sri Lanka',
-  supplierPhone: '+94 11 291 4321',
-  defaultPlaceOfSupply: 'Kelaniya'
+  supplierName: 'PLC ALWIS ENTERPRICES',
+  supplierTin: '103417660-7000',
+  supplierAddress: '144, ANAGARIKA DHARMAPALA MAWATHA, KANDY',
+  supplierPhone: '+94 777769870',
+  defaultPlaceOfSupply: 'KANDY'
 };
 
 export const DEFAULT_FUEL_RATES: FuelRates = {

@@ -159,7 +159,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </label>
               <input
                 type="text"
-                placeholder="e.g. 50 Station Road, Colombo 03"
+                placeholder="e.g. 50 Station Road, Kandy"
                 value={invoiceData.purchaserAddress}
                 onChange={(e) => onChangeField('purchaserAddress', e.target.value)}
                 className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
@@ -185,7 +185,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Kelaniya"
+                  placeholder="KANDY"
                   value={invoiceData.placeOfSupply}
                   onChange={(e) => onChangeField('placeOfSupply', e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"

@@ -124,7 +124,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       required
                       value={profile.supplierName}
                       onChange={(e) => setProfile({ ...profile, supplierName: e.target.value })}
-                      placeholder="e.g. LANKA FUEL MART (PVT) LTD"
+                      placeholder="PLC ALWIS ENTERPRICES"
                       className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
@@ -138,7 +138,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       required
                       value={profile.supplierTin}
                       onChange={(e) => setProfile({ ...profile, supplierTin: e.target.value })}
-                      placeholder="e.g. 102983746-7000"
+                      placeholder="103417660-7000"
                       className="w-full px-3 py-2 text-sm font-mono bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
@@ -152,7 +152,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       rows={2}
                       value={profile.supplierAddress}
                       onChange={(e) => setProfile({ ...profile, supplierAddress: e.target.value })}
-                      placeholder="e.g. No. 245, Kandy Road, Kelaniya"
+                      placeholder="144, ANAGARIKA DHARMAPALA MAWATHA, KANDY"
                       className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
@@ -166,7 +166,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         type="text"
                         value={profile.supplierPhone}
                         onChange={(e) => setProfile({ ...profile, supplierPhone: e.target.value })}
-                        placeholder="+94 11 291 4321"
+                        placeholder="+94 777769870"
                         className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
                       />
                     </div>
@@ -179,7 +179,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         type="text"
                         value={profile.defaultPlaceOfSupply}
                         onChange={(e) => setProfile({ ...profile, defaultPlaceOfSupply: e.target.value })}
-                        placeholder="e.g. Kelaniya"
+                        placeholder="KANDY"
                         className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
                       />
                     </div>
