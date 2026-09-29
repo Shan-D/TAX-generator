@@ -4,8 +4,6 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
-  query,
-  orderBy,
   getDocs,
   getDoc
 } from 'firebase/firestore';
@@ -51,15 +49,12 @@ export async function fetchCloudInvoices(): Promise<InvoiceRecord[]> {
   if (!db || !isFirebaseConfigured()) return [];
 
   try {
-    const q = query(
-      collection(db, INVOICES_COLLECTION),
-      orderBy('createdAt', 'desc')
-    );
-    const snap = await getDocs(q);
+    const snap = await getDocs(collection(db, INVOICES_COLLECTION));
     const records: InvoiceRecord[] = [];
     snap.forEach((docSnap) => {
       records.push(docSnap.data() as InvoiceRecord);
     });
+    records.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     return records;
   } catch (e) {
     console.error('Failed to fetch cloud invoices:', e);
@@ -77,18 +72,14 @@ export function subscribeCloudInvoices(
   }
 
   try {
-    const q = query(
-      collection(db, INVOICES_COLLECTION),
-      orderBy('createdAt', 'desc')
-    );
-
     const unsubscribe = onSnapshot(
-      q,
+      collection(db, INVOICES_COLLECTION),
       (snapshot) => {
         const records: InvoiceRecord[] = [];
         snapshot.forEach((docSnap) => {
           records.push(docSnap.data() as InvoiceRecord);
         });
+        records.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         onSuccess(records);
       },
       (err) => {
