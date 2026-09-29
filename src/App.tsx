@@ -77,7 +77,7 @@ export function App() {
   const [fuelRates, setFuelRates] = useState<FuelRates>(loadFuelRates);
   const [savedInvoices, setSavedInvoices] = useState<InvoiceRecord[]>(getSavedInvoices);
 
-  // Firebase Cloud Sync Listener
+  // Firebase Cloud Sync Listeners for Invoices & Station Settings
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(isFirebaseConfigured());
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export function App() {
     setIsCloudConnected(configured);
     if (!configured) return;
 
-    // Real-time Cloud Firestore invoices subscription
+    // 1. Real-time Cloud Invoices synchronization
     const unsubInvoices = subscribeCloudInvoices((cloudInvoices) => {
       if (cloudInvoices && cloudInvoices.length > 0) {
         setSavedInvoices(cloudInvoices);
@@ -93,13 +93,15 @@ export function App() {
       }
     });
 
-    // Real-time Cloud Firestore settings & unit rates subscription
+    // 2. Real-time Cloud Station Settings & Fuel Rates synchronization across all devices
     const unsubSettings = subscribeCloudSettings(({ profile, rates }) => {
       if (profile) {
         setStationProfile(profile);
+        try { localStorage.setItem('lk_vat_fuel_station_profile', JSON.stringify(profile)); } catch (e) {}
       }
       if (rates) {
         setFuelRates(rates);
+        try { localStorage.setItem('lk_vat_fuel_rates', JSON.stringify(rates)); } catch (e) {}
       }
     });
 

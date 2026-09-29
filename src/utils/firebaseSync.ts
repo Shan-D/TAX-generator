@@ -100,34 +100,30 @@ export async function syncSettingsToCloud(profile: StationProfile, rates: FuelRa
 }
 
 export function subscribeCloudSettings(
-  onSuccess: (settings: { profile?: StationProfile; rates?: FuelRates }) => void
+  onSuccess: (data: { profile: StationProfile; rates: FuelRates }) => void
 ): () => void {
   const db = getDb();
-  if (!db || !isFirebaseConfigured()) {
-    return () => {};
-  }
+  if (!db || !isFirebaseConfigured()) return () => {};
 
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, 'station_config');
-    const unsubscribe = onSnapshot(
-      docRef,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.profile && data.rates) {
           onSuccess({
-            profile: data.profile,
-            rates: data.rates
+            profile: data.profile as StationProfile,
+            rates: data.rates as FuelRates
           });
         }
-      },
-      (err) => {
-        console.error('Error subscribing to cloud settings:', err);
       }
-    );
+    }, (err) => {
+      console.error('Settings snapshot listener error:', err);
+    });
 
     return unsubscribe;
   } catch (e) {
-    console.error('Error setting up cloud settings subscription:', e);
+    console.error('Error subscribing to cloud settings:', e);
     return () => {};
   }
 }
