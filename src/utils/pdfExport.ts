@@ -7,32 +7,64 @@ export async function exportInvoiceToPDF(elementId: string, filename: string): P
     throw new Error(`Element with id ${elementId} not found`);
   }
 
-  // Clone element or temporarily optimize styles for standard A4
-  const canvas = await html2canvas(element, {
-    scale: 2, // High resolution output
-    useCORS: true,
-    logging: false,
-    backgroundColor: '#ffffff'
+  // Create a temporary off-screen container with fixed A4 pixel dimensions (794px x 1123px at 96 DPI)
+  // This guarantees that regardless of mobile screen width, the PDF is rendered at exact 100% desktop scale!
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  container.style.width = '794px';
+  container.style.minHeight = '1123px';
+  container.style.backgroundColor = '#ffffff';
+
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.style.width = '794px';
+  clone.style.minHeight = '1123px';
+  clone.style.maxWidth = 'none';
+  clone.style.margin = '0';
+  clone.style.padding = '32px';
+  clone.style.boxSizing = 'border-box';
+  clone.style.backgroundColor = '#ffffff';
+  clone.style.color = '#000000';
+  
+  // Remove dark mode classes from clone to ensure crisp light PDF
+  clone.classList.remove('dark');
+  const allElements = clone.querySelectorAll('*');
+  allElements.forEach((el) => {
+    el.classList.remove('dark');
   });
 
-  const imgData = canvas.toDataURL('image/png');
-  
-  // A4 dimensions in mm: 210 x 297
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
+  container.appendChild(clone);
+  document.body.appendChild(container);
 
-  const pdfWidth = pdf.internal.pageSize.getWidth();
-  const pdfHeight = pdf.internal.pageSize.getHeight();
-  
-  // Calculate scaled height based on image aspect ratio
-  const imgWidth = pdfWidth;
-  const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+  try {
+    const canvas = await html2canvas(clone, {
+      scale: 3, // High 300 DPI retina clarity
+      useCORS: true,
+      logging: false,
+      width: 794,
+      height: clone.offsetHeight || 1123,
+      windowWidth: 794,
+      backgroundColor: '#ffffff'
+    });
 
-  pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, Math.min(imgHeight, pdfHeight));
-  pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
+    const imgData = canvas.toDataURL('image/png');
+
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
+    });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth(); // 210 mm
+    const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+    pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 export function printInvoice(): void {
