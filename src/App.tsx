@@ -32,7 +32,7 @@ import { numberToWords } from './utils/numberToWords';
 import { Eye, Download, PlusCircle, CheckCircle } from 'lucide-react';
 import { exportInvoiceToPDF } from './utils/pdfExport';
 import { isFirebaseConfigured } from './config/firebase';
-import { subscribeCloudInvoices } from './utils/firebaseSync';
+import { subscribeCloudInvoices, subscribeCloudSettings } from './utils/firebaseSync';
 
 const FUEL_NAMES: Record<FuelCode, string> = {
   '95_PETROL': '95 Octane Petrol',
@@ -85,15 +85,28 @@ export function App() {
     setIsCloudConnected(configured);
     if (!configured) return;
 
-    // Real-time Cloud Firestore synchronization
-    const unsubscribe = subscribeCloudInvoices((cloudInvoices) => {
+    // Real-time Cloud Firestore invoices subscription
+    const unsubInvoices = subscribeCloudInvoices((cloudInvoices) => {
       if (cloudInvoices && cloudInvoices.length > 0) {
         setSavedInvoices(cloudInvoices);
         saveRawInvoiceRecords(cloudInvoices);
       }
     });
 
-    return () => unsubscribe();
+    // Real-time Cloud Firestore settings & unit rates subscription
+    const unsubSettings = subscribeCloudSettings(({ profile, rates }) => {
+      if (profile) {
+        setStationProfile(profile);
+      }
+      if (rates) {
+        setFuelRates(rates);
+      }
+    });
+
+    return () => {
+      unsubInvoices();
+      unsubSettings();
+    };
   }, []);
 
   // App Tabs: 'create' | 'history'

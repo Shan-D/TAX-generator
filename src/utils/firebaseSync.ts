@@ -5,8 +5,7 @@ import {
   deleteDoc,
   onSnapshot,
   query,
-  orderBy,
-  getDocs
+  orderBy
 } from 'firebase/firestore';
 import { getDb, isFirebaseConfigured } from '../config/firebase';
 import { InvoiceRecord, StationProfile, FuelRates } from '../types/invoice';
@@ -97,5 +96,38 @@ export async function syncSettingsToCloud(profile: StationProfile, rates: FuelRa
   } catch (e) {
     console.error('Failed to sync settings to cloud:', e);
     return false;
+  }
+}
+
+export function subscribeCloudSettings(
+  onSuccess: (settings: { profile?: StationProfile; rates?: FuelRates }) => void
+): () => void {
+  const db = getDb();
+  if (!db || !isFirebaseConfigured()) {
+    return () => {};
+  }
+
+  try {
+    const docRef = doc(db, SETTINGS_COLLECTION, 'station_config');
+    const unsubscribe = onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          onSuccess({
+            profile: data.profile,
+            rates: data.rates
+          });
+        }
+      },
+      (err) => {
+        console.error('Error subscribing to cloud settings:', err);
+      }
+    );
+
+    return unsubscribe;
+  } catch (e) {
+    console.error('Error setting up cloud settings subscription:', e);
+    return () => {};
   }
 }
