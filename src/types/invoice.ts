@@ -1,4 +1,4 @@
-export type FuelCode = '92_PETROL' | '95_PETROL' | 'AUTO_DIESEL' | 'SUPER_DIESEL';
+export type FuelCode = '95_PETROL' | 'SUPER_DIESEL' | '92_PETROL' | 'AUTO_DIESEL';
 
 export interface FuelRateItem {
   code: FuelCode;
@@ -18,10 +18,22 @@ export interface StationProfile {
 
 export type PaymentMode = 'Cash' | 'Card' | 'Credit' | 'Bank Transfer';
 
+export interface InvoiceItem {
+  id: string;
+  fuelCode: FuelCode;
+  fuelName: string;
+  quantityLitres: number;
+  unitPrice: number; // Price per litre (incl. VAT)
+  unitPriceExclVat: number; // Price per litre (excl. VAT)
+  amountExclVat: number;
+  vatAmount: number; // 18% VAT
+  amountIncludingVat: number; // Line Total
+}
+
 export interface InvoiceData {
-  taxInvoiceNumber: string;
-  invoiceDate: string; // YYYY-MM-DD
-  dateOfSupply: string; // YYYY-MM-DD (Date of Delivery)
+  taxInvoiceNumber: string; // e.g. 26SEP_PLC1_0001
+  invoiceDate: string; // MM-DD-YYYY
+  dateOfSupply: string; // MM-DD-YYYY
   placeOfSupply: string;
   
   // Purchaser details
@@ -32,18 +44,15 @@ export interface InvoiceData {
   
   // Logistics / Reference
   orderNumber: string;
-  vehicleNumber: string;
   additionalInfo: string;
   
-  // Fuel entry details
-  fuelCode: FuelCode;
-  fuelName: string;
-  quantityLitres: number;
-  unitPrice: number; // Price per litre (incl. VAT)
-  unitPriceExclVat: number; // Price per litre (excl. VAT)
-  amountExclVat: number;
-  vatAmount: number; // 18% VAT
-  amountIncludingVat: number; // Grand Total
+  // Multi-item support
+  items: InvoiceItem[];
+  
+  // Summary Totals
+  totalAmountExclVat: number;
+  totalVatAmount: number;
+  totalAmountIncludingVat: number;
   
   // Payment
   paymentMode: PaymentMode;

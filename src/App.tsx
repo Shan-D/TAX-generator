@@ -10,7 +10,8 @@ import {
   FuelCode,
   FuelRates,
   StationProfile,
-  InvoiceRecord
+  InvoiceRecord,
+  InvoiceItem
 } from './types/invoice';
 import {
   loadStationProfile,
@@ -24,9 +25,8 @@ import {
   deleteInvoiceRecord
 } from './utils/storage';
 import {
-  calculateFromAmount,
-  calculateFromQuantity,
-  VATCalculationResult
+  calculateInvoiceTotals,
+  formatToMMDDYYYY
 } from './utils/vatCalculator';
 import { numberToWords } from './utils/numberToWords';
 import { Eye, Download, PlusCircle, CheckCircle } from 'lucide-react';
@@ -38,13 +38,6 @@ import {
   fetchCloudInvoices,
   fetchCloudSettings
 } from './utils/firebaseSync';
-
-const FUEL_NAMES: Record<FuelCode, string> = {
-  '95_PETROL': '95 Octane Petrol',
-  'SUPER_DIESEL': 'Super Diesel',
-  '92_PETROL': '92 Petrol',
-  'AUTO_DIESEL': 'Auto Diesel'
-};
 
 export function App() {
   // Dark mode state
@@ -145,109 +138,59 @@ export function App() {
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
   const [showSavedToast, setShowSavedToast] = useState<boolean>(false);
 
-  // Active Invoice Form Data
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Default Today Date formatted in MM-DD-YYYY
+  const todayMMDDYYYY = formatToMMDDYYYY(new Date().toISOString().split('T')[0]);
 
+  // Active Invoice Form Data
   const [invoiceData, setInvoiceData] = useState<InvoiceData>({
-    taxInvoiceNumber: getNextInvoiceNumber(),
-    invoiceDate: todayStr,
-    dateOfSupply: todayStr,
+    taxInvoiceNumber: getNextInvoiceNumber(), // YYMMM_PLC1_0000 format e.g. 26SEP_PLC1_0001
+    invoiceDate: todayMMDDYYYY,
+    dateOfSupply: todayMMDDYYYY,
     placeOfSupply: stationProfile.defaultPlaceOfSupply,
     purchaserName: '',
     purchaserTin: '',
     purchaserAddress: '',
     purchaserPhone: '',
     orderNumber: '',
-    vehicleNumber: '',
     additionalInfo: '',
-    fuelCode: '95_PETROL',
-    fuelName: FUEL_NAMES['95_PETROL'],
-    quantityLitres: 0,
-    unitPrice: fuelRates['95_PETROL'],
-    unitPriceExclVat: fuelRates['95_PETROL'] / 1.18,
-    amountExclVat: 0,
-    vatAmount: 0,
-    amountIncludingVat: 0,
+    items: [],
+    totalAmountExclVat: 0,
+    totalVatAmount: 0,
+    totalAmountIncludingVat: 0,
     paymentMode: 'Cash',
     amountInWords: ''
   });
 
-  // String Inputs for dual-reactive calculator
-  const [amountInput, setAmountInput] = useState<string>('');
-  const [quantityInput, setQuantityInput] = useState<string>('');
-  const [lastEditedField, setLastEditedField] = useState<'amount' | 'quantity'>('amount');
-
-  // Calculate live results
-  const calcResult: VATCalculationResult = useMemo(() => {
-    const currentPrice = fuelRates[invoiceData.fuelCode] || 0;
-    if (lastEditedField === 'amount') {
-      const amt = parseFloat(amountInput) || 0;
-      return calculateFromAmount(amt, currentPrice);
-    } else {
-      const qty = parseFloat(quantityInput) || 0;
-      return calculateFromQuantity(qty, currentPrice);
-    }
-  }, [amountInput, quantityInput, lastEditedField, invoiceData.fuelCode, fuelRates]);
-
-  // Sync calcResult to invoiceData state
+  // Recalculate summary totals whenever invoiceData.items changes
   useEffect(() => {
+    const totals = calculateInvoiceTotals(invoiceData.items);
     setInvoiceData((prev) => ({
       ...prev,
-      quantityLitres: calcResult.quantityLitres,
-      unitPrice: calcResult.unitPrice,
-      unitPriceExclVat: calcResult.unitPriceExclVat,
-      amountExclVat: calcResult.amountExclVat,
-      vatAmount: calcResult.vatAmount,
-      amountIncludingVat: calcResult.amountIncludingVat,
-      amountInWords: numberToWords(calcResult.amountIncludingVat)
+      totalAmountExclVat: totals.totalAmountExclVat,
+      totalVatAmount: totals.totalVatAmount,
+      totalAmountIncludingVat: totals.totalAmountIncludingVat,
+      amountInWords: numberToWords(totals.totalAmountIncludingVat)
     }));
-  }, [calcResult]);
+  }, [invoiceData.items]);
 
-  // Dual calculator handlers
-  const handleAmountChange = (val: string) => {
-    setAmountInput(val);
-    setLastEditedField('amount');
-    const amt = parseFloat(val) || 0;
-    const price = fuelRates[invoiceData.fuelCode] || 1;
-    if (amt > 0 && price > 0) {
-      setQuantityInput((amt / price).toFixed(2));
-    } else {
-      setQuantityInput('');
-    }
-  };
-
-  const handleQuantityChange = (val: string) => {
-    setQuantityInput(val);
-    setLastEditedField('quantity');
-    const qty = parseFloat(val) || 0;
-    const price = fuelRates[invoiceData.fuelCode] || 1;
-    if (qty > 0) {
-      setAmountInput((qty * price).toFixed(2));
-    } else {
-      setAmountInput('');
-    }
-  };
-
-  const handleFuelChange = (code: FuelCode) => {
-    const price = fuelRates[code] || 0;
+  // Handle adding an item to the current invoice
+  const handleAddItem = (item: Omit<InvoiceItem, 'id'>) => {
+    const newItem: InvoiceItem = {
+      ...item,
+      id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)
+    };
     setInvoiceData((prev) => ({
       ...prev,
-      fuelCode: code,
-      fuelName: FUEL_NAMES[code],
-      unitPrice: price
+      items: [...prev.items, newItem]
     }));
+  };
 
-    if (lastEditedField === 'amount') {
-      const amt = parseFloat(amountInput) || 0;
-      if (amt > 0 && price > 0) {
-        setQuantityInput((amt / price).toFixed(2));
-      }
-    } else {
-      const qty = parseFloat(quantityInput) || 0;
-      if (qty > 0) {
-        setAmountInput((qty * price).toFixed(2));
-      }
-    }
+  // Handle removing an item from the current invoice
+  const handleRemoveItem = (id: string) => {
+    setInvoiceData((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== id)
+    }));
   };
 
   const handleFieldChange = <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
@@ -264,35 +207,33 @@ export function App() {
 
   // Save to history & reset form for next invoice
   const handleSaveAndReset = () => {
-    const saved = saveInvoiceRecord(invoiceData);
+    if (invoiceData.items.length === 0) {
+      alert('Please add at least one fuel item to save the invoice.');
+      return;
+    }
+
+    saveInvoiceRecord(invoiceData);
     setSavedInvoices(getSavedInvoices());
 
     setShowSavedToast(true);
     setTimeout(() => setShowSavedToast(false), 2000);
 
     // Reset inputs for next bill
-    setAmountInput('');
-    setQuantityInput('');
     setInvoiceData({
       taxInvoiceNumber: getNextInvoiceNumber(),
-      invoiceDate: todayStr,
-      dateOfSupply: todayStr,
+      invoiceDate: todayMMDDYYYY,
+      dateOfSupply: todayMMDDYYYY,
       placeOfSupply: stationProfile.defaultPlaceOfSupply,
       purchaserName: '',
       purchaserTin: '',
       purchaserAddress: '',
       purchaserPhone: '',
       orderNumber: '',
-      vehicleNumber: '',
       additionalInfo: '',
-      fuelCode: invoiceData.fuelCode,
-      fuelName: FUEL_NAMES[invoiceData.fuelCode],
-      quantityLitres: 0,
-      unitPrice: fuelRates[invoiceData.fuelCode],
-      unitPriceExclVat: fuelRates[invoiceData.fuelCode] / 1.18,
-      amountExclVat: 0,
-      vatAmount: 0,
-      amountIncludingVat: 0,
+      items: [],
+      totalAmountExclVat: 0,
+      totalVatAmount: 0,
+      totalAmountIncludingVat: 0,
       paymentMode: 'Cash',
       amountInWords: ''
     });
@@ -325,22 +266,15 @@ export function App() {
               invoiceData={invoiceData}
               fuelRates={fuelRates}
               supplierProfile={stationProfile}
-              amountInput={amountInput}
-              quantityInput={quantityInput}
-              calcResult={calcResult}
               onChangeField={handleFieldChange}
-              onAmountChange={handleAmountChange}
-              onQuantityChange={handleQuantityChange}
-              onFuelChange={handleFuelChange}
+              onAddItem={handleAddItem}
+              onRemoveItem={handleRemoveItem}
               onPreviewClick={() => setIsPreviewOpen(true)}
               onSaveAndReset={handleSaveAndReset}
             />
 
-            {/* Real-time Calculation Summary */}
-            <InvoiceSummary
-              calcResult={calcResult}
-              fuelName={invoiceData.fuelName}
-            />
+            {/* Real-time Summary for all items */}
+            <InvoiceSummary invoiceData={invoiceData} />
           </div>
         ) : (
           <InvoiceHistory

@@ -14,6 +14,8 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
   supplierProfile,
   id = 'a4-tax-invoice-document'
 }) => {
+  const items = invoice.items && invoice.items.length > 0 ? invoice.items : [];
+
   return (
     <div
       id={id}
@@ -102,16 +104,15 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
           <span className="font-bold text-slate-900">Additional Information if any:</span>{' '}
           <span className="font-medium text-slate-800">
             {[
-              invoice.vehicleNumber ? `Vehicle No: ${invoice.vehicleNumber}` : null,
-              invoice.orderNumber ? `PO Ref: ${invoice.orderNumber}` : null,
-              invoice.additionalInfo ? invoice.additionalInfo : null
+              invoice.additionalInfo ? invoice.additionalInfo : null,
+              invoice.orderNumber ? `PO Ref: ${invoice.orderNumber}` : null
             ]
               .filter(Boolean)
               .join(' | ') || 'None'}
           </span>
         </div>
 
-        {/* Main Itemized Table (Fixed IRD Layout) */}
+        {/* Main Itemized Table (Supports Multiple Items) */}
         <div className="border border-slate-900 mb-4 overflow-hidden">
           <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
             <thead>
@@ -135,39 +136,38 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
               </tr>
             </thead>
             <tbody>
-              {/* Item Row 1 */}
-              <tr className="border-b border-slate-900 align-top">
-                <td className="p-2 border-r border-slate-900 text-center font-mono font-bold">1</td>
-                <td className="p-2 border-r border-slate-900 font-medium">
-                  <div className="font-bold text-slate-900">{invoice.fuelName}</div>
-                  <div className="text-[10px] text-slate-500">Fuel Supply (VAT 18% Included in Pump Price)</div>
-                </td>
-                <td className="p-2 border-r border-slate-900 text-right font-mono font-semibold">
-                  {invoice.quantityLitres.toFixed(2)} L
-                </td>
-                <td className="p-2 border-r border-slate-900 text-right font-mono">
-                  {formatCurrency(invoice.unitPrice)}
-                </td>
-                <td className="p-2 text-right font-mono font-bold text-slate-900">
-                  {formatCurrency(invoice.amountExclVat)}
-                </td>
-              </tr>
+              {items.map((item, idx) => (
+                <tr key={item.id || idx} className="border-b border-slate-900 align-top">
+                  <td className="p-2 border-r border-slate-900 text-center font-mono font-bold">
+                    {idx + 1}
+                  </td>
+                  <td className="p-2 border-r border-slate-900 font-medium">
+                    <div className="font-bold text-slate-900">{item.fuelName}</div>
+                    <div className="text-[10px] text-slate-500">Fuel Supply (VAT 18% Included)</div>
+                  </td>
+                  <td className="p-2 border-r border-slate-900 text-right font-mono font-semibold">
+                    {item.quantityLitres.toFixed(2)} L
+                  </td>
+                  <td className="p-2 border-r border-slate-900 text-right font-mono">
+                    {formatCurrency(item.unitPrice)}
+                  </td>
+                  <td className="p-2 text-right font-mono font-bold text-slate-900">
+                    {formatCurrency(item.amountExclVat)}
+                  </td>
+                </tr>
+              ))}
 
-              {/* Blank filler rows for standard height formatting */}
-              <tr className="border-b border-slate-300">
-                <td className="p-3 border-r border-slate-900"></td>
-                <td className="p-3 border-r border-slate-900"></td>
-                <td className="p-3 border-r border-slate-900"></td>
-                <td className="p-3 border-r border-slate-900"></td>
-                <td className="p-3"></td>
-              </tr>
-              <tr className="border-b border-slate-900">
-                <td className="p-3 border-r border-slate-900"></td>
-                <td className="p-3 border-r border-slate-900"></td>
-                <td className="p-3 border-r border-slate-900"></td>
-                <td className="p-3 border-r border-slate-900"></td>
-                <td className="p-3"></td>
-              </tr>
+              {/* Filler Rows if items are few */}
+              {items.length < 3 &&
+                Array.from({ length: 3 - items.length }).map((_, i) => (
+                  <tr key={`filler-${i}`} className="border-b border-slate-300">
+                    <td className="p-3 border-r border-slate-900"></td>
+                    <td className="p-3 border-r border-slate-900"></td>
+                    <td className="p-3 border-r border-slate-900"></td>
+                    <td className="p-3 border-r border-slate-900"></td>
+                    <td className="p-3"></td>
+                  </tr>
+                ))}
 
               {/* Summary Row 1: Total Value of Supply */}
               <tr className="border-b border-slate-900 font-bold">
@@ -175,7 +175,7 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                   Total Value of Supply:
                 </td>
                 <td className="p-2 text-right font-mono font-bold text-slate-900">
-                  {formatCurrency(invoice.amountExclVat)}
+                  {formatCurrency(invoice.totalAmountExclVat)}
                 </td>
               </tr>
 
@@ -185,7 +185,7 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                   VAT Amount (Total Value of Supply @ 18%):
                 </td>
                 <td className="p-2 text-right font-mono font-bold text-slate-900">
-                  {formatCurrency(invoice.vatAmount)}
+                  {formatCurrency(invoice.totalVatAmount)}
                 </td>
               </tr>
 
@@ -195,7 +195,7 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                   Total Amount including VAT:
                 </td>
                 <td className="p-2.5 text-right font-mono text-base text-slate-900">
-                  {formatCurrency(invoice.amountIncludingVat)}
+                  {formatCurrency(invoice.totalAmountIncludingVat)}
                 </td>
               </tr>
             </tbody>

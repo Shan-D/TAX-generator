@@ -1,20 +1,16 @@
 import React, { useState } from 'react';
-import { User, Calendar, MapPin, FileText, CreditCard, ChevronRight } from 'lucide-react';
-import { InvoiceData, FuelCode, FuelRates, StationProfile, PaymentMode } from '../types/invoice';
+import { User, Calendar, MapPin, FileText, CreditCard, ChevronRight, Phone, Info } from 'lucide-react';
+import { InvoiceData, FuelCode, FuelRates, StationProfile, PaymentMode, InvoiceItem } from '../types/invoice';
 import { FuelCalculator } from './FuelCalculator';
-import { VATCalculationResult } from '../utils/vatCalculator';
+import { formatToYYYYMMDD, formatToMMDDYYYY } from '../utils/vatCalculator';
 
 interface InvoiceFormProps {
   invoiceData: InvoiceData;
   fuelRates: FuelRates;
   supplierProfile: StationProfile;
-  amountInput: string;
-  quantityInput: string;
-  calcResult: VATCalculationResult;
   onChangeField: <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => void;
-  onAmountChange: (val: string) => void;
-  onQuantityChange: (val: string) => void;
-  onFuelChange: (code: FuelCode) => void;
+  onAddItem: (item: Omit<InvoiceItem, 'id'>) => void;
+  onRemoveItem: (id: string) => void;
   onPreviewClick: () => void;
   onSaveAndReset: () => void;
 }
@@ -23,17 +19,17 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
   invoiceData,
   fuelRates,
   supplierProfile,
-  amountInput,
-  quantityInput,
-  calcResult,
   onChangeField,
-  onAmountChange,
-  onQuantityChange,
-  onFuelChange,
+  onAddItem,
+  onRemoveItem,
   onPreviewClick,
   onSaveAndReset
 }) => {
   const [activeFormStep, setActiveFormStep] = useState<1 | 2>(1);
+
+  // Parse dates for HTML inputs
+  const invoiceDateInputVal = formatToYYYYMMDD(invoiceData.invoiceDate);
+  const deliveryDateInputVal = formatToYYYYMMDD(invoiceData.dateOfSupply);
 
   return (
     <div className="space-y-4 pb-28">
@@ -49,7 +45,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           }`}
         >
           <User className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-          <span>Step 1: Customer & Delivery</span>
+          <span>Step 1: Customer & Supply</span>
         </button>
         <button
           type="button"
@@ -61,11 +57,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           }`}
         >
           <CreditCard className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-          <span>Step 2: Fuel Entry & Calc</span>
+          <span>Step 2: Add Items ({invoiceData.items.length})</span>
         </button>
       </div>
 
-      {/* STEP 1: Customer & Delivery Logistics */}
+      {/* STEP 1: Customer Details & Supply Logistics */}
       {activeFormStep === 1 && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
           <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -77,7 +73,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 Customer & Supply Details
               </h3>
               <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
-                Purchaser VAT TIN & Delivery Details
+                Purchaser TIN, Telephone & Supply Details
               </p>
             </div>
           </div>
@@ -92,18 +88,19 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 type="text"
                 value={invoiceData.taxInvoiceNumber}
                 onChange={(e) => onChangeField('taxInvoiceNumber', e.target.value)}
-                className="w-full px-3 py-1.5 font-mono font-bold text-xs sm:text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
+                placeholder="26SEP_PLC1_0001"
+                className="w-full px-3 py-1.5 font-mono font-bold text-xs sm:text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500 uppercase"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" /> Invoice Date
+                <Calendar className="w-3.5 h-3.5 text-slate-400" /> Invoice Date (MM-DD-YYYY)
               </label>
               <input
                 type="date"
-                value={invoiceData.invoiceDate}
-                onChange={(e) => onChangeField('invoiceDate', e.target.value)}
+                value={invoiceDateInputVal}
+                onChange={(e) => onChangeField('invoiceDate', formatToMMDDYYYY(e.target.value))}
                 className="w-full px-2 py-1.5 font-mono text-xs sm:text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
               />
             </div>
@@ -113,7 +110,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Purchaser / Customer Business Name *
+                Purchaser / Customer Name *
               </label>
               <input
                 type="text"
@@ -128,11 +125,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Purchaser VAT / TIN Number
+                  Purchaser's TIN Number
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 109823471-7000 (Mandatory for VAT Credit)"
+                  placeholder="e.g. 109823471-7000"
                   value={invoiceData.purchaserTin}
                   onChange={(e) => onChangeField('purchaserTin', e.target.value)}
                   className="w-full px-3 py-2 text-sm font-mono bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
@@ -140,15 +137,15 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Vehicle Registration Number
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" /> Purchaser's Telephone No.
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. WP CAB-1234"
-                  value={invoiceData.vehicleNumber}
-                  onChange={(e) => onChangeField('vehicleNumber', e.target.value)}
-                  className="w-full px-3 py-2 text-sm font-mono uppercase font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
+                  placeholder="e.g. +94 77 123 4567"
+                  value={invoiceData.purchaserPhone}
+                  onChange={(e) => onChangeField('purchaserPhone', e.target.value)}
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
                 />
               </div>
             </div>
@@ -173,8 +170,8 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 </label>
                 <input
                   type="date"
-                  value={invoiceData.dateOfSupply}
-                  onChange={(e) => onChangeField('dateOfSupply', e.target.value)}
+                  value={deliveryDateInputVal}
+                  onChange={(e) => onChangeField('dateOfSupply', formatToMMDDYYYY(e.target.value))}
                   className="w-full px-2 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500 font-mono"
                 />
               </div>
@@ -193,10 +190,24 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </div>
             </div>
 
+            {/* Additional Information replacing Vehicle No */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                <Info className="w-3.5 h-3.5 text-slate-400" /> Additional Information
+              </label>
+              <textarea
+                rows={2}
+                placeholder="e.g. Vehicle No: WP CAB-1234, Driver Name, Slip notes..."
+                value={invoiceData.additionalInfo}
+                onChange={(e) => onChangeField('additionalInfo', e.target.value)}
+                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  PO / Order / Slip Ref
+                  PO / Order Ref
                 </label>
                 <input
                   type="text"
@@ -231,23 +242,20 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
               onClick={() => setActiveFormStep(2)}
               className="w-full py-3 bg-slate-900 dark:bg-brand-600 hover:bg-slate-800 dark:hover:bg-brand-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.99]"
             >
-              <span>Proceed to Fuel Entry & Calc</span>
+              <span>Proceed to Item Entry & Calc</span>
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 2: Fuel Entry & Reactive Dual Calculator */}
+      {/* STEP 2: Multi-item Fuel Entry */}
       {activeFormStep === 2 && (
         <FuelCalculator
-          selectedFuel={invoiceData.fuelCode}
+          items={invoiceData.items}
           fuelRates={fuelRates}
-          amountInput={amountInput}
-          quantityInput={quantityInput}
-          onFuelChange={onFuelChange}
-          onAmountChange={onAmountChange}
-          onQuantityChange={onQuantityChange}
+          onAddItem={onAddItem}
+          onRemoveItem={onRemoveItem}
         />
       )}
     </div>

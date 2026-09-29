@@ -63,7 +63,7 @@ export function saveFuelRates(rates: FuelRates): void {
   }
 }
 
-// Sequence Number Helper (Auto-increment)
+// Sequence Number Helper (Auto-increment format YYMMM_PLC1_0000 e.g. 26SEP_PLC1_0001)
 export function getNextInvoiceNumber(): string {
   let seq = 1;
   try {
@@ -73,8 +73,12 @@ export function getNextInvoiceNumber(): string {
     console.error('Failed to load invoice sequence:', e);
   }
   
-  const padded = seq.toString().padStart(5, '0');
-  return `INV-${new Date().getFullYear()}-${padded}`;
+  const now = new Date();
+  const yearYY = now.getFullYear().toString().slice(-2); // e.g. 26
+  const monthMMM = now.toLocaleString('en-US', { month: 'short' }).toUpperCase(); // e.g. SEP
+  const paddedSeq = seq.toString().padStart(4, '0'); // e.g. 0001
+
+  return `${yearYY}${monthMMM}_PLC1_${paddedSeq}`;
 }
 
 export function incrementInvoiceSequence(): void {
