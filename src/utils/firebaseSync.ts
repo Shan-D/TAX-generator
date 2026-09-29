@@ -5,7 +5,9 @@ import {
   deleteDoc,
   onSnapshot,
   query,
-  orderBy
+  orderBy,
+  getDocs,
+  getDoc
 } from 'firebase/firestore';
 import { getDb, isFirebaseConfigured } from '../config/firebase';
 import { InvoiceRecord, StationProfile, FuelRates } from '../types/invoice';
@@ -44,6 +46,27 @@ export async function deleteInvoiceFromCloud(id: string): Promise<boolean> {
   }
 }
 
+export async function fetchCloudInvoices(): Promise<InvoiceRecord[]> {
+  const db = getDb();
+  if (!db || !isFirebaseConfigured()) return [];
+
+  try {
+    const q = query(
+      collection(db, INVOICES_COLLECTION),
+      orderBy('createdAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    const records: InvoiceRecord[] = [];
+    snap.forEach((docSnap) => {
+      records.push(docSnap.data() as InvoiceRecord);
+    });
+    return records;
+  } catch (e) {
+    console.error('Failed to fetch cloud invoices:', e);
+    return [];
+  }
+}
+
 export function subscribeCloudInvoices(
   onSuccess: (invoices: InvoiceRecord[]) => void,
   onError?: (err: Error) => void
@@ -79,6 +102,26 @@ export function subscribeCloudInvoices(
     console.error('Error setting up cloud invoices subscription:', e);
     return () => {};
   }
+}
+
+export async function fetchCloudSettings(): Promise<{ profile?: StationProfile; rates?: FuelRates } | null> {
+  const db = getDb();
+  if (!db || !isFirebaseConfigured()) return null;
+
+  try {
+    const docRef = doc(db, SETTINGS_COLLECTION, 'station_config');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        profile: data.profile as StationProfile,
+        rates: data.rates as FuelRates
+      };
+    }
+  } catch (e) {
+    console.error('Failed to fetch cloud settings:', e);
+  }
+  return null;
 }
 
 export async function syncSettingsToCloud(profile: StationProfile, rates: FuelRates): Promise<boolean> {

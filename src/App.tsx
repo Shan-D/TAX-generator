@@ -32,7 +32,12 @@ import { numberToWords } from './utils/numberToWords';
 import { Eye, Download, PlusCircle, CheckCircle } from 'lucide-react';
 import { exportInvoiceToPDF } from './utils/pdfExport';
 import { isFirebaseConfigured } from './config/firebase';
-import { subscribeCloudInvoices, subscribeCloudSettings } from './utils/firebaseSync';
+import {
+  subscribeCloudInvoices,
+  subscribeCloudSettings,
+  fetchCloudInvoices,
+  fetchCloudSettings
+} from './utils/firebaseSync';
 
 const FUEL_NAMES: Record<FuelCode, string> = {
   '95_PETROL': '95 Octane Petrol',
@@ -77,13 +82,34 @@ export function App() {
   const [fuelRates, setFuelRates] = useState<FuelRates>(loadFuelRates);
   const [savedInvoices, setSavedInvoices] = useState<InvoiceRecord[]>(getSavedInvoices);
 
-  // Firebase Cloud Sync Listeners for Invoices & Station Settings
+  // Firebase Cloud Sync Listeners & Initial Hydration
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(isFirebaseConfigured());
 
   useEffect(() => {
     const configured = isFirebaseConfigured();
     setIsCloudConnected(configured);
     if (!configured) return;
+
+    // Immediate initial cloud fetch on startup
+    fetchCloudInvoices().then((records) => {
+      if (records && records.length > 0) {
+        setSavedInvoices(records);
+        saveRawInvoiceRecords(records);
+      }
+    });
+
+    fetchCloudSettings().then((settings) => {
+      if (settings) {
+        if (settings.profile) {
+          setStationProfile(settings.profile);
+          try { localStorage.setItem('lk_vat_fuel_station_profile', JSON.stringify(settings.profile)); } catch (e) {}
+        }
+        if (settings.rates) {
+          setFuelRates(settings.rates);
+          try { localStorage.setItem('lk_vat_fuel_rates', JSON.stringify(settings.rates)); } catch (e) {}
+        }
+      }
+    });
 
     // 1. Real-time Cloud Invoices synchronization
     const unsubInvoices = subscribeCloudInvoices((cloudInvoices) => {
@@ -93,7 +119,7 @@ export function App() {
       }
     });
 
-    // 2. Real-time Cloud Station Settings & Fuel Rates synchronization across all devices
+    // 2. Real-time Cloud Station Settings & Fuel Rates synchronization
     const unsubSettings = subscribeCloudSettings(({ profile, rates }) => {
       if (profile) {
         setStationProfile(profile);

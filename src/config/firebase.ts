@@ -18,14 +18,14 @@ export interface FirebaseConfig {
 
 const STORAGE_KEY = 'lk_vat_firebase_config';
 
-// Default configuration from Vite environment variables (if provided)
+// Primary configuration with fallback to the fuel-vat-invoice project
 export const DEFAULT_FIREBASE_CONFIG: FirebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAshqwu825j2tVyMeMw3cil22kBJljc8yA',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'fuel-vat-invoice.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'fuel-vat-invoice',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'fuel-vat-invoice.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1072933240510',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1072933240510:web:bbf49ed49b83e7535328ef'
 };
 
 let appInstance: FirebaseApp | null = null;
@@ -36,7 +36,7 @@ export function loadFirebaseConfig(): FirebaseConfig {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.projectId) return parsed;
+      if (parsed && parsed.projectId && parsed.apiKey) return parsed;
     }
   } catch (e) {
     console.error('Failed to parse saved Firebase config:', e);
@@ -47,7 +47,6 @@ export function loadFirebaseConfig(): FirebaseConfig {
 export function saveFirebaseConfig(config: FirebaseConfig): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    // Re-initialize Firebase instance
     initFirebase(config);
   } catch (e) {
     console.error('Failed to save Firebase config:', e);
@@ -93,7 +92,7 @@ export function initFirebase(config: FirebaseConfig = loadFirebaseConfig()): { a
   }
 }
 
-// Initial initialization attempt
+// Initialize on module load
 initFirebase();
 
 export function getDb(): Firestore | null {
