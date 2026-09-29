@@ -19,6 +19,7 @@ import {
   saveFuelRates,
   getNextInvoiceNumber,
   saveInvoiceRecord,
+  saveRawInvoiceRecords,
   getSavedInvoices,
   deleteInvoiceRecord
 } from './utils/storage';
@@ -30,6 +31,8 @@ import {
 import { numberToWords } from './utils/numberToWords';
 import { Eye, Download, PlusCircle, CheckCircle } from 'lucide-react';
 import { exportInvoiceToPDF } from './utils/pdfExport';
+import { isFirebaseConfigured } from './config/firebase';
+import { subscribeCloudInvoices } from './utils/firebaseSync';
 
 const FUEL_NAMES: Record<FuelCode, string> = {
   '95_PETROL': '95 Octane Petrol',
@@ -73,6 +76,25 @@ export function App() {
   const [stationProfile, setStationProfile] = useState<StationProfile>(loadStationProfile);
   const [fuelRates, setFuelRates] = useState<FuelRates>(loadFuelRates);
   const [savedInvoices, setSavedInvoices] = useState<InvoiceRecord[]>(getSavedInvoices);
+
+  // Firebase Cloud Sync Listener
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(isFirebaseConfigured());
+
+  useEffect(() => {
+    const configured = isFirebaseConfigured();
+    setIsCloudConnected(configured);
+    if (!configured) return;
+
+    // Real-time Cloud Firestore synchronization
+    const unsubscribe = subscribeCloudInvoices((cloudInvoices) => {
+      if (cloudInvoices && cloudInvoices.length > 0) {
+        setSavedInvoices(cloudInvoices);
+        saveRawInvoiceRecords(cloudInvoices);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // App Tabs: 'create' | 'history'
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
@@ -196,6 +218,7 @@ export function App() {
     setFuelRates(newRates);
     saveStationProfile(newProfile);
     saveFuelRates(newRates);
+    setIsCloudConnected(isFirebaseConfigured());
   };
 
   // Save to history & reset form for next invoice
@@ -244,6 +267,7 @@ export function App() {
       {/* App Header */}
       <Header
         isOnline={isOnline}
+        isCloudConnected={isCloudConnected}
         stationProfile={stationProfile}
         activeTab={activeTab}
         darkMode={darkMode}
@@ -324,7 +348,7 @@ export function App() {
       {showSavedToast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900 dark:bg-slate-800 text-white px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 text-xs font-bold border border-slate-700 animate-bounce">
           <CheckCircle className="w-4 h-4 text-emerald-400" />
-          <span>Invoice Saved to History!</span>
+          <span>Invoice Saved to History {isCloudConnected ? '& Cloud!' : '!'}</span>
         </div>
       )}
 

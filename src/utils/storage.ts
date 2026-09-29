@@ -1,4 +1,5 @@
 import { StationProfile, FuelRates, InvoiceRecord } from '../types/invoice';
+import { syncInvoiceToCloud, deleteInvoiceFromCloud, syncSettingsToCloud } from './firebaseSync';
 
 const KEYS = {
   STATION_PROFILE: 'lk_vat_fuel_station_profile',
@@ -36,6 +37,7 @@ export function loadStationProfile(): StationProfile {
 export function saveStationProfile(profile: StationProfile): void {
   try {
     localStorage.setItem(KEYS.STATION_PROFILE, JSON.stringify(profile));
+    syncSettingsToCloud(profile, loadFuelRates());
   } catch (e) {
     console.error('Failed to save station profile:', e);
   }
@@ -55,6 +57,7 @@ export function loadFuelRates(): FuelRates {
 export function saveFuelRates(rates: FuelRates): void {
   try {
     localStorage.setItem(KEYS.FUEL_RATES, JSON.stringify(rates));
+    syncSettingsToCloud(loadStationProfile(), rates);
   } catch (e) {
     console.error('Failed to save fuel rates:', e);
   }
@@ -119,7 +122,19 @@ export function saveInvoiceRecord(record: Omit<InvoiceRecord, 'id' | 'createdAt'
   } catch (e) {
     console.error('Failed to save invoice record:', e);
   }
+
+  // Trigger Cloud Sync automatically
+  syncInvoiceToCloud(newRecord);
+
   return newRecord;
+}
+
+export function saveRawInvoiceRecords(records: InvoiceRecord[]): void {
+  try {
+    localStorage.setItem(KEYS.INVOICE_HISTORY, JSON.stringify(records));
+  } catch (e) {
+    console.error('Failed to save raw invoice records:', e);
+  }
 }
 
 export function deleteInvoiceRecord(id: string): void {
@@ -130,4 +145,7 @@ export function deleteInvoiceRecord(id: string): void {
   } catch (e) {
     console.error('Failed to delete invoice record:', e);
   }
+
+  // Trigger Cloud Delete
+  deleteInvoiceFromCloud(id);
 }

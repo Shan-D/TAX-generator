@@ -1,9 +1,10 @@
 import React from 'react';
-import { Fuel, Settings, Wifi, WifiOff, FileText, PlusCircle, Sun, Moon } from 'lucide-react';
+import { Fuel, Settings, Wifi, WifiOff, FileText, PlusCircle, Sun, Moon, Cloud } from 'lucide-react';
 import { StationProfile } from '../types/invoice';
 
 interface HeaderProps {
   isOnline: boolean;
+  isCloudConnected: boolean;
   stationProfile: StationProfile;
   activeTab: 'create' | 'history';
   darkMode: boolean;
@@ -14,6 +15,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   isOnline,
+  isCloudConnected,
   stationProfile,
   activeTab,
   darkMode,
@@ -34,13 +36,24 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight truncate">
                 {stationProfile.supplierName || 'VAT Fuel Invoice'}
               </h1>
-              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
-                Sri Lanka VAT 18% Fuel Tax Invoice
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium truncate flex items-center gap-1">
+                <span>Sri Lanka VAT 18% Tax Invoice</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Cloud Sync Status Badge */}
+            {isCloudConnected ? (
+              <div
+                className="hidden xs:inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800"
+                title="Connected to Firebase Cloud Storage"
+              >
+                <Cloud className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span>Cloud</span>
+              </div>
+            ) : null}
+
             {/* Online / Offline Status Badge */}
             <div
               className={`inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold ${
@@ -79,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenSettings}
               className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700"
-              title="Station & Fuel Rate Settings"
+              title="Station, Rates & Cloud Settings"
             >
               <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
