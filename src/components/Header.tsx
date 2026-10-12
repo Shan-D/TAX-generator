@@ -1,15 +1,16 @@
 import React from 'react';
-import { Fuel, Settings, Wifi, WifiOff, FileText, PlusCircle, Sun, Moon, Cloud } from 'lucide-react';
+import { Fuel, Settings, Wifi, WifiOff, FileText, PlusCircle, Sun, Moon, Cloud, Users } from 'lucide-react';
 import { StationProfile } from '../types/invoice';
 
 interface HeaderProps {
   isOnline: boolean;
   isCloudConnected: boolean;
   stationProfile: StationProfile;
-  activeTab: 'create' | 'history';
+  activeTab: 'create' | 'history' | 'buyers';
+  buyersCount?: number;
   darkMode: boolean;
   onToggleDarkMode: () => void;
-  setActiveTab: (tab: 'create' | 'history') => void;
+  setActiveTab: (tab: 'create' | 'history' | 'buyers') => void;
   onOpenSettings: () => void;
 }
 
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   isCloudConnected,
   stationProfile,
   activeTab,
+  buyersCount = 0,
   darkMode,
   onToggleDarkMode,
   setActiveTab,
@@ -121,7 +123,18 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Invoice History</span>
+            <span>History</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('buyers')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all active:scale-[0.98] ${
+              activeTab === 'buyers'
+                ? 'bg-white dark:bg-slate-700 text-brand-700 dark:text-brand-300 shadow-sm font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Buyers {buyersCount > 0 ? `(${buyersCount})` : ''}</span>
           </button>
         </div>
       </div>

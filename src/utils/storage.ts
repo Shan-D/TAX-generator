@@ -1,11 +1,18 @@
-import { StationProfile, FuelRates, InvoiceRecord } from '../types/invoice';
-import { syncInvoiceToCloud, deleteInvoiceFromCloud, syncSettingsToCloud } from './firebaseSync';
+import { StationProfile, FuelRates, InvoiceRecord, BuyerRecord } from '../types/invoice';
+import {
+  syncInvoiceToCloud,
+  deleteInvoiceFromCloud,
+  syncSettingsToCloud,
+  syncBuyerToCloud,
+  deleteBuyerFromCloud
+} from './firebaseSync';
 
 const KEYS = {
   STATION_PROFILE: 'lk_vat_fuel_station_profile',
   FUEL_RATES: 'lk_vat_fuel_rates',
   INVOICE_SEQUENCE: 'lk_vat_fuel_invoice_seq',
-  INVOICE_HISTORY: 'lk_vat_fuel_invoices'
+  INVOICE_HISTORY: 'lk_vat_fuel_invoices',
+  BUYERS: 'lk_vat_fuel_buyers'
 };
 
 export const DEFAULT_STATION_PROFILE: StationProfile = {
@@ -152,4 +159,92 @@ export function deleteInvoiceRecord(id: string): void {
 
   // Trigger Cloud Delete
   deleteInvoiceFromCloud(id);
+}
+
+// Frequent Buyers Directory Persistence
+export function getSavedBuyers(): BuyerRecord[] {
+  try {
+    const raw = localStorage.getItem(KEYS.BUYERS);
+    if (raw) {
+      const parsed: BuyerRecord[] = JSON.parse(raw);
+      return parsed.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
+  } catch (e) {
+    console.error('Failed to get saved buyers:', e);
+  }
+  return [];
+}
+
+export function saveBuyerRecord(buyer: Omit<BuyerRecord, 'id' | 'createdAt'> & { id?: string }): BuyerRecord {
+  const buyers = getSavedBuyers();
+  const trimmedName = buyer.name.trim();
+
+  // Look for existing buyer by id, or by exact case-insensitive name
+  const existingIndex = buyers.findIndex(b => 
+    (buyer.id && b.id === buyer.id) || 
+    (b.name && b.name.trim().toLowerCase() === trimmedName.toLowerCase())
+  );
+
+  let savedRecord: BuyerRecord;
+
+  if (existingIndex >= 0) {
+    // Update existing record
+    const existing = buyers[existingIndex];
+    savedRecord = {
+      ...existing,
+      name: trimmedName,
+      tin: buyer.tin !== undefined ? buyer.tin.trim() : existing.tin,
+      address: buyer.address !== undefined ? buyer.address.trim() : existing.address,
+      phone: buyer.phone !== undefined ? buyer.phone.trim() : existing.phone,
+      updatedAt: new Date().toISOString()
+    };
+    buyers[existingIndex] = savedRecord;
+  } else {
+    // Insert new buyer record
+    savedRecord = {
+      id: buyer.id || 'buyer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      name: trimmedName,
+      tin: (buyer.tin || '').trim(),
+      address: (buyer.address || '').trim(),
+      phone: (buyer.phone || '').trim(),
+      createdAt: new Date().toISOString()
+    };
+    buyers.push(savedRecord);
+  }
+
+  // Sort alphabetically
+  buyers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  try {
+    localStorage.setItem(KEYS.BUYERS, JSON.stringify(buyers));
+  } catch (e) {
+    console.error('Failed to save buyers to local storage:', e);
+  }
+
+  // Sync to Cloud
+  syncBuyerToCloud(savedRecord);
+
+  return savedRecord;
+}
+
+export function saveRawBuyerRecords(records: BuyerRecord[]): void {
+  try {
+    const sorted = [...records].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    localStorage.setItem(KEYS.BUYERS, JSON.stringify(sorted));
+  } catch (e) {
+    console.error('Failed to save raw buyer records:', e);
+  }
+}
+
+export function deleteBuyerRecord(id: string): void {
+  const buyers = getSavedBuyers();
+  const updated = buyers.filter(b => b.id !== id);
+  try {
+    localStorage.setItem(KEYS.BUYERS, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to delete buyer record from local storage:', e);
+  }
+
+  // Trigger Cloud Delete
+  deleteBuyerFromCloud(id);
 }

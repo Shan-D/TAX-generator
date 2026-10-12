@@ -8,10 +8,11 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { getDb, isFirebaseConfigured } from '../config/firebase';
-import { InvoiceRecord, StationProfile, FuelRates } from '../types/invoice';
+import { InvoiceRecord, StationProfile, FuelRates, BuyerRecord } from '../types/invoice';
 
 const INVOICES_COLLECTION = 'invoices';
 const SETTINGS_COLLECTION = 'settings';
+const BUYERS_COLLECTION = 'buyers';
 
 export async function syncInvoiceToCloud(invoice: InvoiceRecord): Promise<boolean> {
   const db = getDb();
@@ -158,6 +159,88 @@ export function subscribeCloudSettings(
     return unsubscribe;
   } catch (e) {
     console.error('Error subscribing to cloud settings:', e);
+    return () => {};
+  }
+}
+
+// Buyer Cloud Persistence
+export async function syncBuyerToCloud(buyer: BuyerRecord): Promise<boolean> {
+  const db = getDb();
+  if (!db || !isFirebaseConfigured()) return false;
+
+  try {
+    const docRef = doc(db, BUYERS_COLLECTION, buyer.id);
+    await setDoc(docRef, {
+      ...buyer,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (e) {
+    console.error('Failed to sync buyer to cloud:', e);
+    return false;
+  }
+}
+
+export async function deleteBuyerFromCloud(id: string): Promise<boolean> {
+  const db = getDb();
+  if (!db || !isFirebaseConfigured()) return false;
+
+  try {
+    const docRef = doc(db, BUYERS_COLLECTION, id);
+    await deleteDoc(docRef);
+    return true;
+  } catch (e) {
+    console.error('Failed to delete buyer from cloud:', e);
+    return false;
+  }
+}
+
+export async function fetchCloudBuyers(): Promise<BuyerRecord[]> {
+  const db = getDb();
+  if (!db || !isFirebaseConfigured()) return [];
+
+  try {
+    const snap = await getDocs(collection(db, BUYERS_COLLECTION));
+    const records: BuyerRecord[] = [];
+    snap.forEach((docSnap) => {
+      records.push(docSnap.data() as BuyerRecord);
+    });
+    // Sort buyers alphabetically by name
+    records.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return records;
+  } catch (e) {
+    console.error('Failed to fetch cloud buyers:', e);
+    return [];
+  }
+}
+
+export function subscribeCloudBuyers(
+  onSuccess: (buyers: BuyerRecord[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  const db = getDb();
+  if (!db || !isFirebaseConfigured()) return () => {};
+
+  try {
+    const unsubscribe = onSnapshot(
+      collection(db, BUYERS_COLLECTION),
+      (snapshot) => {
+        const records: BuyerRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          records.push(docSnap.data() as BuyerRecord);
+        });
+        records.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        onSuccess(records);
+      },
+      (err) => {
+        console.error('Buyers snapshot listener error:', err);
+        if (onError) onError(err);
+      }
+    );
+
+    return unsubscribe;
+  } catch (e) {
+    console.error('Error subscribing to cloud buyers:', e);
     return () => {};
   }
 }

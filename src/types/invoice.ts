@@ -65,3 +65,13 @@ export interface InvoiceRecord extends InvoiceData {
   id: string;
   createdAt: string;
 }
+
+export interface BuyerRecord {
+  id: string;
+  name: string;
+  tin: string;
+  address: string;
+  phone: string;
+  createdAt: string;
+  updatedAt?: string;
+}

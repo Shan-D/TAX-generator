@@ -5,13 +5,15 @@ import { InvoiceSummary } from './components/InvoiceSummary';
 import { PreviewModal } from './components/PreviewModal';
 import { SettingsModal } from './components/SettingsModal';
 import { InvoiceHistory } from './components/InvoiceHistory';
+import { BuyerList } from './components/BuyerList';
 import {
   InvoiceData,
   FuelCode,
   FuelRates,
   StationProfile,
   InvoiceRecord,
-  InvoiceItem
+  InvoiceItem,
+  BuyerRecord
 } from './types/invoice';
 import {
   loadStationProfile,
@@ -22,7 +24,11 @@ import {
   saveInvoiceRecord,
   saveRawInvoiceRecords,
   getSavedInvoices,
-  deleteInvoiceRecord
+  deleteInvoiceRecord,
+  getSavedBuyers,
+  saveBuyerRecord,
+  saveRawBuyerRecords,
+  deleteBuyerRecord
 } from './utils/storage';
 import {
   calculateInvoiceTotals,
@@ -35,8 +41,10 @@ import { isFirebaseConfigured } from './config/firebase';
 import {
   subscribeCloudInvoices,
   subscribeCloudSettings,
+  subscribeCloudBuyers,
   fetchCloudInvoices,
-  fetchCloudSettings
+  fetchCloudSettings,
+  fetchCloudBuyers
 } from './utils/firebaseSync';
 
 export function App() {
@@ -74,6 +82,7 @@ export function App() {
   const [stationProfile, setStationProfile] = useState<StationProfile>(loadStationProfile);
   const [fuelRates, setFuelRates] = useState<FuelRates>(loadFuelRates);
   const [savedInvoices, setSavedInvoices] = useState<InvoiceRecord[]>(getSavedInvoices);
+  const [savedBuyers, setSavedBuyers] = useState<BuyerRecord[]>(getSavedBuyers);
 
   // Firebase Cloud Sync Listeners & Initial Hydration
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(isFirebaseConfigured());
@@ -88,6 +97,13 @@ export function App() {
       if (records && records.length > 0) {
         setSavedInvoices(records);
         saveRawInvoiceRecords(records);
+      }
+    });
+
+    fetchCloudBuyers().then((buyers) => {
+      if (buyers && buyers.length > 0) {
+        setSavedBuyers(buyers);
+        saveRawBuyerRecords(buyers);
       }
     });
 
@@ -112,7 +128,15 @@ export function App() {
       }
     });
 
-    // 2. Real-time Cloud Station Settings & Fuel Rates synchronization
+    // 2. Real-time Cloud Buyers synchronization
+    const unsubBuyers = subscribeCloudBuyers((cloudBuyers) => {
+      if (cloudBuyers && cloudBuyers.length > 0) {
+        setSavedBuyers(cloudBuyers);
+        saveRawBuyerRecords(cloudBuyers);
+      }
+    });
+
+    // 3. Real-time Cloud Station Settings & Fuel Rates synchronization
     const unsubSettings = subscribeCloudSettings(({ profile, rates }) => {
       if (profile) {
         setStationProfile(profile);
@@ -126,12 +150,13 @@ export function App() {
 
     return () => {
       unsubInvoices();
+      unsubBuyers();
       unsubSettings();
     };
   }, []);
 
-  // App Tabs: 'create' | 'history'
-  const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
+  // App Tabs: 'create' | 'history' | 'buyers'
+  const [activeTab, setActiveTab] = useState<'create' | 'history' | 'buyers'>('create');
 
   // Modals state
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -212,6 +237,17 @@ export function App() {
       return;
     }
 
+    // Auto-save or update buyer profile in database if purchaser name provided
+    if (invoiceData.purchaserName.trim()) {
+      saveBuyerRecord({
+        name: invoiceData.purchaserName.trim(),
+        tin: invoiceData.purchaserTin.trim(),
+        address: invoiceData.purchaserAddress.trim(),
+        phone: invoiceData.purchaserPhone.trim()
+      });
+      setSavedBuyers(getSavedBuyers());
+    }
+
     saveInvoiceRecord(invoiceData);
     setSavedInvoices(getSavedInvoices());
 
@@ -244,6 +280,27 @@ export function App() {
     setSavedInvoices(getSavedInvoices());
   };
 
+  const handleSaveBuyer = (buyer: Omit<BuyerRecord, 'id' | 'createdAt'> & { id?: string }) => {
+    saveBuyerRecord(buyer);
+    setSavedBuyers(getSavedBuyers());
+  };
+
+  const handleDeleteBuyer = (id: string) => {
+    deleteBuyerRecord(id);
+    setSavedBuyers(getSavedBuyers());
+  };
+
+  const handleSelectBuyerForInvoice = (buyer: BuyerRecord) => {
+    setInvoiceData((prev) => ({
+      ...prev,
+      purchaserName: buyer.name,
+      purchaserTin: buyer.tin || '',
+      purchaserAddress: buyer.address || '',
+      purchaserPhone: buyer.phone || ''
+    }));
+    setActiveTab('create');
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors">
       {/* App Header */}
@@ -252,6 +309,7 @@ export function App() {
         isCloudConnected={isCloudConnected}
         stationProfile={stationProfile}
         activeTab={activeTab}
+        buyersCount={savedBuyers.length}
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
         setActiveTab={setActiveTab}
@@ -260,12 +318,14 @@ export function App() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-6">
-        {activeTab === 'create' ? (
+        {activeTab === 'create' && (
           <div className="space-y-4">
             <InvoiceForm
               invoiceData={invoiceData}
               fuelRates={fuelRates}
               supplierProfile={stationProfile}
+              savedBuyers={savedBuyers}
+              onSaveBuyer={handleSaveBuyer}
               onChangeField={handleFieldChange}
               onAddItem={handleAddItem}
               onRemoveItem={handleRemoveItem}
@@ -276,11 +336,23 @@ export function App() {
             {/* Real-time Summary for all items */}
             <InvoiceSummary invoiceData={invoiceData} />
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'history' && (
           <InvoiceHistory
             invoices={savedInvoices}
             supplierProfile={stationProfile}
             onDeleteInvoice={handleDeleteInvoice}
+          />
+        )}
+
+        {activeTab === 'buyers' && (
+          <BuyerList
+            buyers={savedBuyers}
+            isCloudConnected={isCloudConnected}
+            onSaveBuyer={handleSaveBuyer}
+            onDeleteBuyer={handleDeleteBuyer}
+            onSelectBuyerForInvoice={handleSelectBuyerForInvoice}
           />
         )}
       </main>
