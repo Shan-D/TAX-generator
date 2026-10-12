@@ -27,6 +27,10 @@ export async function createInvoicePDF(elementId: string): Promise<jsPDF> {
   clone.style.boxSizing = 'border-box';
   clone.style.backgroundColor = '#ffffff';
   clone.style.color = '#000000';
+  clone.style.display = 'block';
+  clone.style.visibility = 'visible';
+  clone.style.opacity = '1';
+  clone.classList.remove('hidden');
   
   // Remove dark mode classes from clone to ensure crisp light PDF
   clone.classList.remove('dark');
@@ -103,24 +107,72 @@ ${itemsText || '• Fuel Items'}
 _Sri Lanka IRD VAT Compliant Tax Invoice_`;
 }
 
-export function shareToWhatsApp(invoice: InvoiceData, supplierName: string): void {
-  const text = formatInvoiceShareText(invoice, supplierName);
-  const encodedText = encodeURIComponent(text);
-  
-  // Format purchaser phone if available (e.g. +94 77 123 4567 or 0771234567 -> 94771234567)
+/**
+ * Share PDF file directly to WhatsApp:
+ * 1. Generates PDF file
+ * 2. On Mobile (Android/iOS) and supporting browsers, invokes native Web Share API with files: [pdfFile] so WhatsApp receives the actual PDF document attachment!
+ * 3. On Desktop WhatsApp Web (which cannot receive files via URL protocol), downloads the PDF automatically and opens WhatsApp Web to the customer's chat.
+ */
+export async function shareInvoicePDFToWhatsApp(
+  elementId: string,
+  invoice: InvoiceData,
+  supplierName: string
+): Promise<{ success: boolean; mode: 'native_pdf' | 'download_and_whatsapp' }> {
+  const filename = `Tax_Invoice_${invoice.taxInvoiceNumber}.pdf`;
+
+  // 1. Generate the PDF
+  const blob = await generateInvoicePDFBlob(elementId);
+  const file = new File([blob], filename, {
+    type: 'application/pdf',
+    lastModified: Date.now()
+  });
+
+  // 2. Check if device supports Web Share API with files (Mobile devices / modern browsers)
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: `Tax Invoice - ${invoice.taxInvoiceNumber}`,
+        text: `Tax Invoice ${invoice.taxInvoiceNumber} from ${supplierName || 'PLC ALWIS ENTERPRICES'}`
+      });
+      return { success: true, mode: 'native_pdf' };
+    } catch (e: any) {
+      if (e && e.name === 'AbortError') {
+        return { success: true, mode: 'native_pdf' }; // User dismissed share dialog
+      }
+      console.warn('Native file share failed, falling back:', e);
+    }
+  }
+
+  // 3. Desktop fallback:
+  // Desktop WhatsApp Web does not accept local file attachments via URL schemes.
+  // We automatically download the PDF file and open WhatsApp Web with customer's chat.
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
   let cleanPhone = (invoice.purchaserPhone || '').replace(/[^0-9]/g, '');
   if (cleanPhone.startsWith('0')) {
     cleanPhone = '94' + cleanPhone.slice(1);
   }
 
-  let url: string;
+  const shareText = `*TAX INVOICE ${invoice.taxInvoiceNumber}*\nStation: ${supplierName || 'PLC ALWIS ENTERPRICES'}\nCustomer: ${invoice.purchaserName || 'Cash Customer'}\nTotal: Rs. ${invoice.totalAmountIncludingVat.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n(📄 PDF invoice downloaded to device - attach here to send)`;
+  const encodedText = encodeURIComponent(shareText);
+
+  let waUrl: string;
   if (cleanPhone.length >= 9) {
-    url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+    waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
   } else {
-    url = `https://api.whatsapp.com/send?text=${encodedText}`;
+    waUrl = `https://web.whatsapp.com/send?text=${encodedText}`;
   }
 
-  window.open(url, '_blank');
+  window.open(waUrl, '_blank');
+  return { success: true, mode: 'download_and_whatsapp' };
 }
 
 export async function shareInvoicePDF(
@@ -129,7 +181,7 @@ export async function shareInvoicePDF(
   supplierName: string
 ): Promise<boolean> {
   const filename = `Tax_Invoice_${invoice.taxInvoiceNumber}.pdf`;
-  const shareText = formatInvoiceShareText(invoice, supplierName);
+  const shareText = `Tax Invoice ${invoice.taxInvoiceNumber} - ${supplierName || 'PLC ALWIS ENTERPRICES'}`;
 
   if (navigator.share) {
     try {
@@ -152,14 +204,14 @@ export async function shareInvoicePDF(
       }
     } catch (e: any) {
       if (e && e.name === 'AbortError') {
-        return true; // User cancelled the native share sheet
+        return true;
       }
-      console.warn('Native Web Share failed, falling back to WhatsApp:', e);
+      console.warn('Native Web Share failed:', e);
     }
   }
 
-  // Fallback to WhatsApp
-  shareToWhatsApp(invoice, supplierName);
+  // Fallback
+  await shareInvoicePDFToWhatsApp(elementId, invoice, supplierName);
   return true;
 }
 

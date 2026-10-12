@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { X, Download, Eye, MessageCircle, Share2 } from 'lucide-react';
+import { X, Download, Eye, MessageCircle, Share2, CheckCircle2 } from 'lucide-react';
 import { InvoiceData, StationProfile } from '../types/invoice';
 import { InvoiceDocument } from './InvoiceDocument';
-import { exportInvoiceToPDF, shareToWhatsApp, shareInvoicePDF } from '../utils/pdfExport';
+import { exportInvoiceToPDF, shareInvoicePDFToWhatsApp, shareInvoicePDF } from '../utils/pdfExport';
 
 interface PreviewModalProps {
   isOpen: boolean;
@@ -18,7 +18,9 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
   supplierProfile
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
+  const [isSharingWhatsApp, setIsSharingWhatsApp] = useState(false);
+  const [isSharingNative, setIsSharingNative] = useState(false);
+  const [desktopNotice, setDesktopNotice] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -37,18 +39,35 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
     }
   };
 
-  const handleShareWhatsApp = () => {
-    shareToWhatsApp(invoice, supplierProfile.supplierName);
+  const handleShareWhatsApp = async () => {
+    setIsSharingWhatsApp(true);
+    setDesktopNotice(null);
+    try {
+      const res = await shareInvoicePDFToWhatsApp(
+        'a4-tax-invoice-document',
+        invoice,
+        supplierProfile.supplierName
+      );
+      if (res.mode === 'download_and_whatsapp') {
+        setDesktopNotice('PDF document downloaded! Drag or attach it into WhatsApp Web.');
+        setTimeout(() => setDesktopNotice(null), 6000);
+      }
+    } catch (e) {
+      console.error('WhatsApp share error:', e);
+      alert('Could not share PDF to WhatsApp.');
+    } finally {
+      setIsSharingWhatsApp(false);
+    }
   };
 
   const handleNativeShare = async () => {
-    setIsSharing(true);
+    setIsSharingNative(true);
     try {
       await shareInvoicePDF('a4-tax-invoice-document', invoice, supplierProfile.supplierName);
     } catch (e) {
       console.error('Share error:', e);
     } finally {
-      setIsSharing(false);
+      setIsSharingNative(false);
     }
   };
 
@@ -66,27 +85,28 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* WhatsApp Share Button */}
+            {/* WhatsApp (PDF) Button */}
             <button
               type="button"
               onClick={handleShareWhatsApp}
-              className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg flex items-center gap-1.5 transition-colors shadow-sm active:scale-95"
-              title="Share invoice summary directly to WhatsApp"
+              disabled={isSharingWhatsApp}
+              className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg flex items-center gap-1.5 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+              title="Send PDF document to WhatsApp"
             >
               <MessageCircle className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">WhatsApp</span>
+              <span>{isSharingWhatsApp ? 'Preparing PDF...' : 'WhatsApp (PDF)'}</span>
             </button>
 
             {/* Native Share Button */}
             <button
               type="button"
               onClick={handleNativeShare}
-              disabled={isSharing}
-              className="px-2.5 sm:px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 active:scale-95"
-              title="Share PDF via WhatsApp, Email, or apps"
+              disabled={isSharingNative}
+              className="px-2.5 sm:px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50 active:scale-95"
+              title="Share PDF via device apps"
             >
               <Share2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{isSharing ? 'Sharing...' : 'Share PDF'}</span>
+              <span className="hidden sm:inline">{isSharingNative ? 'Sharing...' : 'Share PDF'}</span>
             </button>
 
             {/* Download PDF Button */}
@@ -94,11 +114,11 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
               type="button"
               onClick={handleDownloadPDF}
               disabled={isDownloading}
-              className="px-2.5 sm:px-3.5 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs rounded-lg flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 active:scale-95"
+              className="px-2.5 sm:px-3.5 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs rounded-lg flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50 active:scale-95"
               title="Download A4 PDF document"
             >
               <Download className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">{isDownloading ? 'Compiling...' : 'Download PDF'}</span>
+              <span className="hidden xs:inline">{isDownloading ? 'Compiling...' : 'Download'}</span>
             </button>
 
             <button
@@ -111,6 +131,22 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Desktop notification banner if opened on desktop */}
+        {desktopNotice && (
+          <div className="bg-emerald-600 text-white text-xs font-semibold px-4 py-2 flex items-center justify-between gap-2 shadow-sm animate-fadeIn">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{desktopNotice}</span>
+            </div>
+            <button
+              onClick={() => setDesktopNotice(null)}
+              className="text-white hover:text-emerald-200 text-xs font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Scrollable Document Container */}
         <div className="p-3 sm:p-6 overflow-y-auto flex-1 flex justify-center bg-slate-200/80 dark:bg-slate-950">
