@@ -29,7 +29,8 @@ import {
   getSavedBuyers,
   saveBuyerRecord,
   saveRawBuyerRecords,
-  deleteBuyerRecord
+  deleteBuyerRecord,
+  updateInvoiceNumberDate
 } from './utils/storage';
 import {
   calculateInvoiceTotals,
@@ -221,7 +222,17 @@ export function App() {
   };
 
   const handleFieldChange = <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
-    setInvoiceData((prev) => ({ ...prev, [field]: value }));
+    setInvoiceData((prev) => {
+      if (field === 'invoiceDate' && typeof value === 'string' && value.trim()) {
+        const updatedInvoiceNumber = updateInvoiceNumberDate(prev.taxInvoiceNumber, value);
+        return {
+          ...prev,
+          invoiceDate: value,
+          taxInvoiceNumber: updatedInvoiceNumber
+        };
+      }
+      return { ...prev, [field]: value };
+    });
   };
 
   const handleSaveSettings = (newProfile: StationProfile, newRates: FuelRates) => {

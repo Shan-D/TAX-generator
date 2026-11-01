@@ -70,8 +70,108 @@ export function saveFuelRates(rates: FuelRates): void {
   }
 }
 
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+export function getYearMonthFromDate(dateInput?: string | Date): { yearYY: string; monthMMM: string } {
+  if (!dateInput) {
+    const now = new Date();
+    return {
+      yearYY: now.getFullYear().toString().slice(-2),
+      monthMMM: MONTHS[now.getMonth()]
+    };
+  }
+
+  if (dateInput instanceof Date) {
+    if (!isNaN(dateInput.getTime())) {
+      return {
+        yearYY: dateInput.getFullYear().toString().slice(-2),
+        monthMMM: MONTHS[dateInput.getMonth()]
+      };
+    }
+  }
+
+  const str = String(dateInput).trim();
+
+  // Check YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymdMatch) {
+    const year = ymdMatch[1];
+    const month = parseInt(ymdMatch[2], 10);
+    if (month >= 1 && month <= 12) {
+      return {
+        yearYY: year.slice(-2),
+        monthMMM: MONTHS[month - 1]
+      };
+    }
+  }
+
+  // Check MM-DD-YYYY or MM/DD/YYYY
+  const mdyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (mdyMatch) {
+    const month = parseInt(mdyMatch[1], 10);
+    const year = mdyMatch[3];
+    if (month >= 1 && month <= 12) {
+      return {
+        yearYY: year.slice(-2),
+        monthMMM: MONTHS[month - 1]
+      };
+    }
+  }
+
+  // Fallback to standard JS Date parsing
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return {
+      yearYY: parsed.getFullYear().toString().slice(-2),
+      monthMMM: MONTHS[parsed.getMonth()]
+    };
+  }
+
+  const now = new Date();
+  return {
+    yearYY: now.getFullYear().toString().slice(-2),
+    monthMMM: MONTHS[now.getMonth()]
+  };
+}
+
+export function updateInvoiceNumberDate(currentInvoiceNumber: string, dateInput: string | Date): string {
+  const { yearYY, monthMMM } = getYearMonthFromDate(dateInput);
+
+  if (!currentInvoiceNumber || !currentInvoiceNumber.trim()) {
+    return getNextInvoiceNumber(dateInput);
+  }
+
+  const trimmed = currentInvoiceNumber.trim();
+
+  // 1. Standard format: YYMMM_PLC1_XXXX e.g. 26SEP_PLC1_0001
+  const standardMatch = trimmed.match(/^(\d{2})([A-Za-z]{3})(_.*)$/);
+  if (standardMatch) {
+    return `${yearYY}${monthMMM}${standardMatch[3]}`;
+  }
+
+  // 2. Format with hyphen or other separator: YYMMM-XXXX or YY-MMM-XXXX
+  const altMatch = trimmed.match(/^(\d{2})[-_]?([A-Za-z]{3})([-_\s].*)$/);
+  if (altMatch) {
+    return `${yearYY}${monthMMM}${altMatch[3]}`;
+  }
+
+  // 3. Format with 3 letters only at start: MMM_PLC1_XXXX
+  const monthOnlyMatch = trimmed.match(/^([A-Za-z]{3})(_.*)$/);
+  if (monthOnlyMatch) {
+    return `${yearYY}${monthMMM}${monthOnlyMatch[2]}`;
+  }
+
+  // 4. If there's an underscore followed by something ending with digits (e.g. anything_0001)
+  const suffixMatch = trimmed.match(/(_.*)$/);
+  if (suffixMatch) {
+    return `${yearYY}${monthMMM}${suffixMatch[1]}`;
+  }
+
+  return `${yearYY}${monthMMM}_${trimmed}`;
+}
+
 // Sequence Number Helper (Auto-increment format YYMMM_PLC1_0000 e.g. 26SEP_PLC1_0001)
-export function getNextInvoiceNumber(): string {
+export function getNextInvoiceNumber(dateInput?: string | Date): string {
   let seq = 1;
   try {
     const raw = localStorage.getItem(KEYS.INVOICE_SEQUENCE);
@@ -80,9 +180,7 @@ export function getNextInvoiceNumber(): string {
     console.error('Failed to load invoice sequence:', e);
   }
   
-  const now = new Date();
-  const yearYY = now.getFullYear().toString().slice(-2); // e.g. 26
-  const monthMMM = now.toLocaleString('en-US', { month: 'short' }).toUpperCase(); // e.g. SEP
+  const { yearYY, monthMMM } = getYearMonthFromDate(dateInput);
   const paddedSeq = seq.toString().padStart(4, '0'); // e.g. 0001
 
   return `${yearYY}${monthMMM}_PLC1_${paddedSeq}`;
