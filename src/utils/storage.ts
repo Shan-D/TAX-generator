@@ -118,26 +118,42 @@ export function getSavedInvoices(): InvoiceRecord[] {
   return [];
 }
 
-export function saveInvoiceRecord(record: Omit<InvoiceRecord, 'id' | 'createdAt'>): InvoiceRecord {
+export function saveInvoiceRecord(record: Omit<InvoiceRecord, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): InvoiceRecord {
   const invoices = getSavedInvoices();
-  const newRecord: InvoiceRecord = {
-    ...record,
-    id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-    createdAt: new Date().toISOString()
-  };
-  
-  const updated = [newRecord, ...invoices];
-  try {
-    localStorage.setItem(KEYS.INVOICE_HISTORY, JSON.stringify(updated));
+  const existingIndex = invoices.findIndex(inv => 
+    (record.id && inv.id === record.id) || 
+    (inv.taxInvoiceNumber && record.taxInvoiceNumber && inv.taxInvoiceNumber.trim().toUpperCase() === record.taxInvoiceNumber.trim().toUpperCase())
+  );
+
+  let savedRecord: InvoiceRecord;
+
+  if (existingIndex >= 0) {
+    savedRecord = {
+      ...invoices[existingIndex],
+      ...record,
+      updatedAt: new Date().toISOString()
+    };
+    invoices[existingIndex] = savedRecord;
+  } else {
+    savedRecord = {
+      ...record,
+      id: record.id || ('inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
+      createdAt: record.createdAt || new Date().toISOString()
+    };
+    invoices.unshift(savedRecord);
     incrementInvoiceSequence();
+  }
+
+  try {
+    localStorage.setItem(KEYS.INVOICE_HISTORY, JSON.stringify(invoices));
   } catch (e) {
     console.error('Failed to save invoice record:', e);
   }
 
   // Trigger Cloud Sync automatically
-  syncInvoiceToCloud(newRecord);
+  syncInvoiceToCloud(savedRecord);
 
-  return newRecord;
+  return savedRecord;
 }
 
 export function saveRawInvoiceRecords(records: InvoiceRecord[]): void {

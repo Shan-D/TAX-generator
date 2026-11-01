@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Search, Download, Trash2, FileText, Fuel, Phone, Eye, MessageCircle, Share2, CheckCircle2 } from 'lucide-react';
+import { Search, Download, Trash2, FileText, Fuel, Phone, Eye } from 'lucide-react';
 import { InvoiceRecord, StationProfile } from '../types/invoice';
-import { exportInvoiceToPDF, shareInvoicePDFToWhatsApp, shareInvoicePDF } from '../utils/pdfExport';
+import { exportInvoiceToPDF } from '../utils/pdfExport';
 import { formatCurrency } from '../utils/vatCalculator';
 import { InvoiceDocument } from './InvoiceDocument';
 import { PreviewModal } from './PreviewModal';
@@ -21,9 +21,6 @@ export const InvoiceHistory: React.FC<InvoiceHistoryProps> = ({
   const [activeDocInvoice, setActiveDocInvoice] = useState<InvoiceRecord | null>(null);
   const [previewInvoice, setPreviewInvoice] = useState<InvoiceRecord | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [sharingWhatsAppId, setSharingWhatsAppId] = useState<string | null>(null);
-  const [sharingNativeId, setSharingNativeId] = useState<string | null>(null);
-  const [desktopNotice, setDesktopNotice] = useState<string | null>(null);
 
   const filtered = invoices.filter((inv) => {
     const term = searchTerm.toLowerCase();
@@ -58,58 +55,8 @@ export const InvoiceHistory: React.FC<InvoiceHistoryProps> = ({
     }, 150);
   };
 
-  const handleShareWhatsAppPDF = async (inv: InvoiceRecord) => {
-    setActiveDocInvoice(inv);
-    setSharingWhatsAppId(inv.id);
-    setDesktopNotice(null);
-    setTimeout(async () => {
-      try {
-        const res = await shareInvoicePDFToWhatsApp(
-          `history-doc-${inv.id}`,
-          inv,
-          supplierProfile.supplierName
-        );
-        if (res.mode === 'download_and_whatsapp') {
-          setDesktopNotice(`PDF "${inv.taxInvoiceNumber}.pdf" downloaded! Attach or drag it into WhatsApp Web.`);
-          setTimeout(() => setDesktopNotice(null), 6000);
-        }
-      } catch (e) {
-        console.error('WhatsApp share error:', e);
-        alert('Could not share PDF to WhatsApp.');
-      } finally {
-        setSharingWhatsAppId(null);
-      }
-    }, 150);
-  };
-
-  const handleShareNativePDF = async (inv: InvoiceRecord) => {
-    setActiveDocInvoice(inv);
-    setSharingNativeId(inv.id);
-    setTimeout(async () => {
-      try {
-        await shareInvoicePDF(
-          `history-doc-${inv.id}`,
-          inv,
-          supplierProfile.supplierName
-        );
-      } catch (e) {
-        console.error('Share error:', e);
-      } finally {
-        setSharingNativeId(null);
-      }
-    }, 150);
-  };
-
   return (
     <div className="space-y-4 pb-28">
-      {/* Toast notice for desktop fallback */}
-      {desktopNotice && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-bold border border-emerald-500 animate-bounce max-w-md text-center">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{desktopNotice}</span>
-        </div>
-      )}
-
       {/* Search Header */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors">
         <div className="flex items-center justify-between">
@@ -206,56 +153,32 @@ export const InvoiceHistory: React.FC<InvoiceHistoryProps> = ({
                   )}
                 </div>
 
-                {/* Card Action Bar - Preview, WhatsApp (PDF), Share PDF, Download PDF & Delete */}
-                <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                {/* Card Action Bar - Preview, Download PDF & Delete */}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   {/* 1. Preview Button */}
                   <button
                     type="button"
                     onClick={() => setPreviewInvoice(inv)}
-                    className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-lg flex items-center gap-1.5 transition-all shadow-xs active:scale-95"
+                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-lg flex items-center gap-1.5 transition-all shadow-xs active:scale-95"
                     title="View and preview invoice document"
                   >
                     <Eye className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
                     <span>Preview</span>
                   </button>
 
-                  {/* 2. WhatsApp (PDF) Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleShareWhatsAppPDF(inv)}
-                    disabled={sharingWhatsAppId === inv.id}
-                    className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold text-xs rounded-lg flex items-center gap-1.5 transition-all border border-emerald-200 dark:border-emerald-800 shadow-xs active:scale-95 disabled:opacity-50"
-                    title="Send PDF document to WhatsApp"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>{sharingWhatsAppId === inv.id ? 'Preparing...' : 'WhatsApp'}</span>
-                  </button>
-
-                  {/* 3. Share PDF Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleShareNativePDF(inv)}
-                    disabled={sharingNativeId === inv.id}
-                    className="px-2.5 py-1.5 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-bold text-xs rounded-lg flex items-center gap-1.5 transition-all border border-sky-200 dark:border-sky-800 shadow-xs disabled:opacity-50 active:scale-95"
-                    title="Share PDF file via device apps"
-                  >
-                    <Share2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                    <span className="hidden xs:inline">{sharingNativeId === inv.id ? 'Sharing...' : 'Share PDF'}</span>
-                  </button>
-
-                  {/* 4. Download PDF Button */}
+                  {/* 2. Download PDF Button */}
                   <button
                     type="button"
                     onClick={() => handleDownloadSingle(inv)}
                     disabled={downloadingId === inv.id}
-                    className="px-2.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 active:scale-95"
+                    className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 active:scale-95"
                     title="Download A4 PDF document"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>{downloadingId === inv.id ? 'Saving...' : 'PDF'}</span>
+                    <span>{downloadingId === inv.id ? 'Saving...' : 'Download PDF'}</span>
                   </button>
 
-                  {/* 5. Delete Button */}
+                  {/* 3. Delete Button */}
                   <button
                     type="button"
                     onClick={() => {

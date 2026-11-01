@@ -64,6 +64,7 @@ export interface InvoiceData {
 export interface InvoiceRecord extends InvoiceData {
   id: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface BuyerRecord {

@@ -6,6 +6,7 @@ import { PreviewModal } from './components/PreviewModal';
 import { SettingsModal } from './components/SettingsModal';
 import { InvoiceHistory } from './components/InvoiceHistory';
 import { BuyerList } from './components/BuyerList';
+import { InvoiceDocument } from './components/InvoiceDocument';
 import {
   InvoiceData,
   FuelCode,
@@ -162,6 +163,7 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
   const [showSavedToast, setShowSavedToast] = useState<boolean>(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
 
   // Default Today Date formatted in MM-DD-YYYY
   const todayMMDDYYYY = formatToMMDDYYYY(new Date().toISOString().split('T')[0]);
@@ -230,6 +232,53 @@ export function App() {
     setIsCloudConnected(isFirebaseConfigured());
   };
 
+  // Save invoice record & buyer profile to history and cloud without resetting form
+  const handleSaveInvoiceOnly = (inv: InvoiceData) => {
+    if (inv.items.length === 0) return;
+
+    // Auto-save or update buyer profile in database if purchaser name provided
+    if (inv.purchaserName.trim()) {
+      saveBuyerRecord({
+        name: inv.purchaserName.trim(),
+        tin: inv.purchaserTin.trim(),
+        address: inv.purchaserAddress.trim(),
+        phone: inv.purchaserPhone.trim()
+      });
+      setSavedBuyers(getSavedBuyers());
+    }
+
+    saveInvoiceRecord(inv);
+    setSavedInvoices(getSavedInvoices());
+
+    setShowSavedToast(true);
+    setTimeout(() => setShowSavedToast(false), 2000);
+  };
+
+  // Download PDF and ensure invoice is saved to history & cloud
+  const handleDownloadNewInvoice = async () => {
+    if (invoiceData.items.length === 0) {
+      alert('Please add at least one fuel item to download and save the invoice.');
+      return;
+    }
+
+    setIsDownloadingPdf(true);
+    // 1. Save invoice to history & cloud
+    handleSaveInvoiceOnly(invoiceData);
+
+    // 2. Export PDF
+    try {
+      await exportInvoiceToPDF(
+        'current-invoice-doc-offscreen',
+        `Tax_Invoice_${invoiceData.taxInvoiceNumber}.pdf`
+      );
+    } catch (e) {
+      console.error('PDF export error:', e);
+      alert('Failed to generate PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   // Save to history & reset form for next invoice
   const handleSaveAndReset = () => {
     if (invoiceData.items.length === 0) {
@@ -237,22 +286,7 @@ export function App() {
       return;
     }
 
-    // Auto-save or update buyer profile in database if purchaser name provided
-    if (invoiceData.purchaserName.trim()) {
-      saveBuyerRecord({
-        name: invoiceData.purchaserName.trim(),
-        tin: invoiceData.purchaserTin.trim(),
-        address: invoiceData.purchaserAddress.trim(),
-        phone: invoiceData.purchaserPhone.trim()
-      });
-      setSavedBuyers(getSavedBuyers());
-    }
-
-    saveInvoiceRecord(invoiceData);
-    setSavedInvoices(getSavedInvoices());
-
-    setShowSavedToast(true);
-    setTimeout(() => setShowSavedToast(false), 2000);
+    handleSaveInvoiceOnly(invoiceData);
 
     // Reset inputs for next bill
     setInvoiceData({
@@ -370,14 +404,12 @@ export function App() {
             </button>
 
             <button
-              onClick={() => {
-                setIsPreviewOpen(true);
-                setTimeout(() => exportInvoiceToPDF('a4-tax-invoice-document', `Tax_Invoice_${invoiceData.taxInvoiceNumber}.pdf`), 300);
-              }}
-              className="flex-1 py-3 px-2 sm:px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-[0.98]"
+              onClick={handleDownloadNewInvoice}
+              disabled={isDownloadingPdf}
+              className="flex-1 py-3 px-2 sm:px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              <span>Download PDF</span>
+              <span>{isDownloadingPdf ? 'Saving & Exporting...' : 'Download PDF'}</span>
             </button>
 
             <button
@@ -414,7 +446,28 @@ export function App() {
         onClose={() => setIsPreviewOpen(false)}
         invoice={invoiceData}
         supplierProfile={stationProfile}
+        onSaveBeforeDownload={handleSaveInvoiceOnly}
       />
+
+      {/* Offscreen element for clean direct PDF generation from New Invoice */}
+      <div
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: 0,
+          width: '794px',
+          minHeight: '1123px',
+          pointerEvents: 'none',
+          opacity: 0,
+          zIndex: -100
+        }}
+      >
+        <InvoiceDocument
+          id="current-invoice-doc-offscreen"
+          invoice={invoiceData}
+          supplierProfile={stationProfile}
+        />
+      </div>
     </div>
   );
 }
